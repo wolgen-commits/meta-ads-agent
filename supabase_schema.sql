@@ -7,13 +7,15 @@ create table if not exists competitor_ads (
   id              uuid default gen_random_uuid() primary key,
 
   -- Data scraping
+  ad_id           text unique,
   competitor_name text not null,
   page_name       text,
   ad_copy         text,
   cta             text,
   platforms       text[],
   media_type      text,        -- 'image' | 'video'
-  started_running text,
+  started_running      text,
+  started_running_date date,
   country         text default 'ID',
   snapshot_url    text,
   scraped_at      timestamptz default now(),

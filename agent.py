@@ -412,6 +412,7 @@ def save_to_supabase(ad: dict, analysis: dict) -> dict:
     Gabungkan data scraping + analisis, lalu upsert ke Supabase.
     """
     record = {
+        "ad_id": ad.get("ad_id"),
         "competitor_name": ad.get("competitor_name"),
         "page_name": ad.get("page_name"),
         "ad_copy": ad.get("ad_copy"),
@@ -419,9 +420,9 @@ def save_to_supabase(ad: dict, analysis: dict) -> dict:
         "platforms": ad.get("platforms", []),
         "media_type": ad.get("media_type"),
         "started_running": ad.get("started_running"),
+        "started_running_date": parse_started_running_date(ad.get("started_running") or ""),
         "country": ad.get("country"),
         "snapshot_url": ad.get("snapshot_url"),
-        "started_running_date": parse_started_running_date(ad.get("started_running") or ""),
         "scraped_at": ad.get("scraped_at"),
         # Hasil analisis Claude
         "inferred_objective": analysis.get("inferred_objective"),
@@ -436,7 +437,7 @@ def save_to_supabase(ad: dict, analysis: dict) -> dict:
         "analyzed_at": datetime.utcnow().isoformat(),
     }
 
-    result = supabase.table("competitor_ads").upsert(record).execute()
+    result = supabase.table("competitor_ads").upsert(record, on_conflict="ad_id").execute()
     return result.data
 
 
