@@ -39,6 +39,36 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 #  jadi kita anchor ke pola teks yang stabil: "ID Galeri:", "Aktif", dll)
 # ─────────────────────────────────────────────
 import re
+from datetime import date as date_type
+
+MONTH_ID = {
+    "januari": 1, "februari": 2, "maret": 3, "april": 4,
+    "mei": 5, "juni": 6, "juli": 7, "agustus": 8,
+    "september": 9, "oktober": 10, "november": 11, "desember": 12,
+}
+MONTH_EN = {
+    "january": 1, "february": 2, "march": 3, "april": 4,
+    "may": 5, "june": 6, "july": 7, "august": 8,
+    "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+def parse_started_running_date(text: str) -> str | None:
+    """Parse teks tanggal Meta Ad Library ke ISO date (YYYY-MM-DD). Return None jika gagal."""
+    text = text.strip().lower()
+    # Format ID: "1 januari 2025" / EN: "january 1, 2025"
+    m = re.match(r"(\d{1,2})\s+(\w+)\s+(\d{4})", text)
+    if m:
+        day, month_str, year = int(m.group(1)), m.group(2), int(m.group(3))
+        month = MONTH_ID.get(month_str) or MONTH_EN.get(month_str)
+        if month:
+            return date_type(year, month, day).isoformat()
+    m = re.match(r"(\w+)\s+(\d{1,2}),?\s+(\d{4})", text)
+    if m:
+        month_str, day, year = m.group(1), int(m.group(2)), int(m.group(3))
+        month = MONTH_ID.get(month_str) or MONTH_EN.get(month_str)
+        if month:
+            return date_type(year, month, day).isoformat()
+    return None
 
 # Pola teks penanda yang stabil (versi ID & EN, Facebook bisa tampilkan keduanya
 # tergantung locale browser)
@@ -391,6 +421,7 @@ def save_to_supabase(ad: dict, analysis: dict) -> dict:
         "started_running": ad.get("started_running"),
         "country": ad.get("country"),
         "snapshot_url": ad.get("snapshot_url"),
+        "started_running_date": parse_started_running_date(ad.get("started_running") or ""),
         "scraped_at": ad.get("scraped_at"),
         # Hasil analisis Claude
         "inferred_objective": analysis.get("inferred_objective"),
