@@ -416,20 +416,53 @@ async def run_agent(
     competitor_name: str,
     country: str = "ID",
     max_ads: int = 20,
+    on_progress=None,  # callback(dict) -> None
 ) -> dict:
     """
     Entry point utama agent. Jalankan scraping → analisis → simpan.
+    on_progress dipanggil di setiap langkah untuk update status real-time.
     """
+    def progress(message: str, **kwargs):
+        print(f"[Agent] {message}")
+        if on_progress:
+            on_progress({"message": message, **kwargs})
+
     print(f"\n{'='*50}")
     print(f"[Agent] Mulai scraping: {competitor_name} | {country}")
     print(f"{'='*50}\n")
 
     # 1. Scraping
+    progress("Membuka Meta Ad Library...", step="opening", ads_found=0, ads_analyzed=0)
     raw_ads = await scrape_competitor_ads(competitor_name, country, max_ads)
     print(f"\n[Agent] Total iklan ditemukan: {len(raw_ads)}")
 
+    if len(raw_ads) == 0:
+        progress("Tidak ada iklan ditemukan untuk kata kunci ini.", step="done", ads_found=0, ads_analyzed=0)
+        return {
+            "competitor": competitor_name,
+            "total_ads_scraped": 0,
+            "total_analyzed": 0,
+            "objectives_found": [],
+            "completed_at": datetime.utcnow().isoformat(),
+        }
+
+    progress(
+        f"Ditemukan {len(raw_ads)} iklan. Memulai analisis AI...",
+        step="analyzing",
+        ads_found=len(raw_ads),
+        ads_analyzed=0,
+    )
+
     results = []
     for i, ad in enumerate(raw_ads):
+        page = ad.get("page_name") or competitor_name
+        progress(
+            f"Menganalisis iklan {i+1}/{len(raw_ads)} — {page}",
+            step="analyzing",
+            ads_found=len(raw_ads),
+            ads_analyzed=i,
+            current_page=page,
+        )
         print(f"\n[Agent] Menganalisis iklan {i+1}/{len(raw_ads)}...")
 
         # 2. Analisis AI
@@ -437,6 +470,13 @@ async def run_agent(
         print(f"  → Objective: {analysis.get('inferred_objective')} ({analysis.get('objective_confidence')})")
 
         # 3. Simpan
+        progress(
+            f"Menyimpan iklan {i+1}/{len(raw_ads)} ke database...",
+            step="saving",
+            ads_found=len(raw_ads),
+            ads_analyzed=i + 1,
+            current_page=page,
+        )
         saved = save_to_supabase(ad, analysis)
         results.append({"ad": ad, "analysis": analysis, "saved": saved})
 
@@ -451,6 +491,12 @@ async def run_agent(
         "completed_at": datetime.utcnow().isoformat(),
     }
 
+    progress(
+        f"Selesai! {len(results)} iklan berhasil dianalisis.",
+        step="done",
+        ads_found=len(raw_ads),
+        ads_analyzed=len(results),
+    )
     print(f"\n[Agent] Selesai! Summary: {json.dumps(summary, indent=2)}")
     return summary
 

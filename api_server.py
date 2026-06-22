@@ -42,7 +42,7 @@ class ScrapeRequest(BaseModel):
     max_ads: int = 20
 
 
-def _run_agent_in_thread(competitor_name: str, country: str, max_ads: int) -> dict:
+def _run_agent_in_thread(competitor_name: str, country: str, max_ads: int, progress_callback=None) -> dict:
     """
     Jalankan agent di thread terpisah dengan event loop baru.
     Diperlukan di Windows karena Playwright tidak bisa launch browser
@@ -52,23 +52,35 @@ def _run_agent_in_thread(competitor_name: str, country: str, max_ads: int) -> di
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        return loop.run_until_complete(run_agent(competitor_name, country, max_ads))
+        return loop.run_until_complete(
+            run_agent(competitor_name, country, max_ads, on_progress=progress_callback)
+        )
     finally:
         loop.close()
 
 
 async def run_agent_job(job_id: str, req: ScrapeRequest):
-    job_status[job_id] = {"status": "running", "competitor": req.competitor_name}
+    job_status[job_id] = {
+        "status": "running",
+        "competitor": req.competitor_name,
+        "progress": {"step": "starting", "message": "Mempersiapkan agent...", "ads_found": 0, "ads_analyzed": 0},
+    }
+
+    def on_progress(info: dict):
+        job_status[job_id]["progress"] = info
+
     try:
+        import functools
         loop = asyncio.get_event_loop()
+        fn = functools.partial(
+            _run_agent_in_thread,
+            req.competitor_name,
+            req.country,
+            req.max_ads,
+            on_progress,
+        )
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            summary = await loop.run_in_executor(
-                pool,
-                _run_agent_in_thread,
-                req.competitor_name,
-                req.country,
-                req.max_ads,
-            )
+            summary = await loop.run_in_executor(pool, fn)
         job_status[job_id] = {"status": "done", "summary": summary}
     except Exception as e:
         err_msg = repr(e) if not str(e).strip() else str(e)
