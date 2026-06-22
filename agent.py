@@ -225,7 +225,7 @@ def parse_card_text(
         "started_running": "Unknown",
         "competitor_name": competitor_name,
         "country": country,
-        "snapshot_url": source_url,
+        "snapshot_url": f"https://www.facebook.com/ads/library/?id={ad_id}" if not ad_id.startswith("unknown") else source_url,
         "scraped_at": datetime.utcnow().isoformat(),
     }
 
